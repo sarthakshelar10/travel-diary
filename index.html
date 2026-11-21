@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="travelDiaryApp">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Travel Diary</title>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+<style>
+:root {
+  --bg: #fff8f0; --card: #ffffff; --text: #222222; --muted: #666666;
+  --accent: #ff6f61; --accent2: #ffb86b; --shadow: rgba(0,0,0,0.12); --border: #dddddd;
+}
+.dark {
+  --bg: #0f1724; --card: #172235; --text: #e6eef8; --muted: #a0aec0;
+  --accent: #4db6ac; --accent2: #245c68; --shadow: rgba(0,0,0,0.4); --border: #34445b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; font-family: Arial, sans-serif;
+  background: linear-gradient(120deg,var(--bg),var(--accent2)); color: var(--text); transition: 0.3s;
+}
+.container { max-width: 1100px; margin: auto; padding: 20px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
+h1 { font-size: 26px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button { cursor: pointer; border: none; border-radius: 8px; padding: 10px 14px; font-weight: bold; font-size: 13px; }
+.btn { background: var(--accent); color: white; }
+.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.danger { background: #e74c3c; color: white; }
+.ghost { background: transparent; color: var(--text); border: 1px dashed var(--border); }
+.form { background: var(--card); padding: 18px; border-radius: 14px; box-shadow: 0 8px 25px var(--shadow); margin-bottom: 22px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 15px; }
+.col-2 { flex: 1 1 48%; min-width: 200px; }
+.col-3 { flex: 1 1 30%; min-width: 150px; }
+input, select, textarea {
+  width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card); color: var(--text); font-size: 14px;
+}
+textarea { min-height: 90px; resize: vertical; }
+input[type="file"] { display: none; }
+.file-label { display: inline-block; background: var(--accent); color: white; padding: 10px 13px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.form-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; align-items: center; }
+.muted { color: var(--muted); font-size: 13px; }
+.search-input { width: 190px; }
+.entries { display: grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 18px; }
+.card {
+  background: var(--card); border-radius: 13px; padding: 14px; box-shadow: 0 8px 25px var(--shadow);
+  display: flex; flex-direction: column; min-height: 190px; overflow-wrap: anywhere;
+}
+.card img { width: 100%; height: 175px; object-fit: cover; border-radius: 9px; margin: 10px 0; }
+.meta { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.tag { background: var(--accent); color: white; padding: 6px 9px; border-radius: 20px; font-size: 11px; }
+.card-footer { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; }
+.empty { text-align: center; padding: 30px; color: var(--muted); grid-column: 1/-1; background: var(--card); border-radius: 12px; }
+.preview { max-width: 180px; max-height: 130px; object-fit: cover; border-radius: 8px; margin-top: 10px; }
+@media(max-width:640px) {
+  header { flex-direction: column; align-items: stretch; }
+  .controls { width: 100%; }
+  .search-input { width: 100%; }
+  .search { display: flex; width: 100%; gap: 8px; }
+  .col-2,.col-3 { flex: 1 1 100%; }
+  .container { padding: 12px; }
+}
+</style>
+</head>
+<body ng-controller="DiaryController" ng-class="{'dark':isDark}">
+<div class="container">
+<header>
+  <h1>✈️ My Travel Diary</h1>
+  <div class="controls">
+    <div class="search">
+      <input class="search-input" type="text" ng-model="searchText" placeholder="Search memories...">
+      <select ng-model="filterTag">
+        <option value="All">All Categories</option>
+        <option ng-repeat="tag in tags" value="{{tag}}">{{tag}}</option>
+      </select>
+    </div>
+    <button class="secondary" ng-click="toggleTheme()">{{isDark ? '☀️ Light' : '🌙 Dark'}}</button>
+    <button class="danger" ng-click="clearAll()" ng-if="entries.length">Clear All</button>
+  </div>
+</header>
+<section class="form">
+  <div>
+    <strong>{{editMode ? 'Edit Memory' : 'Add a New Memory'}}</strong>
+    <p class="muted">Save your travel memories with photos and descriptions.</p>
+  </div>
+  <label class="file-label">📎 Upload Image
+    <input type="file" accept="image/*" onchange="angular.element(this).scope().loadImage(event)">
+  </label>
+  <div class="row">
+    <div class="col-2"><input type="text" ng-model="newEntry.destination" placeholder="Destination (e.g. Goa)"></div>
+    <div class="col-3"><input type="date" ng-model="newEntry.date"></div>
+    <div class="col-3">
+      <select ng-model="newEntry.tag">
+        <option value="">Select Category</option>
+        <option ng-repeat="tag in tags" value="{{tag}}">{{tag}}</option>
+      </select>
+    </div>
+    <div style="width:100%"><textarea ng-model="newEntry.description" placeholder="Write your travel experience..."></textarea></div>
+    <div style="width:100%" ng-if="newEntry.image">
+      <p class="muted">Image Preview</p>
+      <img class="preview" ng-src="{{newEntry.image}}">
+      <button class="secondary" ng-click="removeImage()">Remove Image</button>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn" ng-click="saveEntry()">{{editMode ? 'Update Memory' : 'Add Memory'}}</button>
+    <button class="secondary" ng-click="cancelEdit()" ng-if="editMode">Cancel</button>
+    <button class="ghost" ng-click="exportJSON()">Export JSON</button>
+    <span class="muted" style="margin-left:auto">Total Memories: <strong>{{entries.length}}</strong></span>
+  </div>
+</section>
+<section class="entries">
+  <div class="card" ng-repeat="entry in filteredEntries = (entries | filter:searchFilter | orderBy:'-date') track by entry.id">
+    <div class="meta">
+      <div><strong>{{entry.destination}}</strong><p class="muted">{{formatDate(entry.date)}}</p></div>
+      <span class="tag">{{entry.tag || 'Uncategorized'}}</span>
+    </div>
+    <p>{{entry.description}}</p>
+    <img ng-if="entry.image" ng-src="{{entry.image}}" alt="Travel photograph">
+    <div class="card-footer">
+      <button class="secondary" ng-click="startEdit(entry)">Edit</button>
+      <button class="danger" ng-click="deleteEntry(entry)">Delete</button>
+    </div>
+  </div>
+  <div class="empty" ng-if="filteredEntries.length === 0"><h3>🌍 No memories found!</h3><p>Add your first travel memory.</p></div>
+</section>
+</div>
+<script>
+angular.module('travelDiaryApp', [])
+.controller('DiaryController', ['$scope', function($scope) {
+  $scope.tags = ['Beach','Mountain','City','Historical','Nature','Adventure','Food','Festival'];
+  const STORAGE_KEY = 'travel_diary_entries_v2';
+  const THEME_KEY = 'travel_diary_theme_v2';
+  $scope.entries = [];
+  $scope.editMode = false;
+  $scope.editingId = null;
+  $scope.newEntry = {};
+  $scope.searchText = '';
+  $scope.filterTag = 'All';
+  $scope.isDark = false;
+
+  function loadData() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      $scope.entries = Array.isArray(stored) ? stored : [];
+      $scope.entries.forEach(function(entry, index) {
+        if (!entry.id) entry.id = 'memory-' + index + '-' + Date.now();
+      });
+    } catch(error) { $scope.entries = []; }
+    $scope.isDark = localStorage.getItem(THEME_KEY) === 'dark';
+  }
+  function saveData() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify($scope.entries)); }
+    catch(error) { alert('Storage is full. Try using smaller images.'); }
+  }
+
+  $scope.loadImage = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image.'); event.target.value = ''; return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size should be less than 2 MB.'); event.target.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      $scope.$apply(function() {
+        $scope.newEntry.image = e.target.result;
+        $scope.newEntry.imageName = file.name;
+      });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+  $scope.removeImage = function() {
+    $scope.newEntry.image = '';
+    $scope.newEntry.imageName = '';
+  };
+  $scope.saveEntry = function() {
+    const destination = ($scope.newEntry.destination || '').trim();
+    if (!destination || !$scope.newEntry.date) {
+      alert('Please enter destination and date.'); return;
+    }
+    const date = $scope.newEntry.date instanceof Date
+      ? $scope.newEntry.date.toISOString().slice(0,10)
+      : $scope.newEntry.date;
+    const payload = {
+      id: $scope.editMode ? $scope.editingId : 'memory-' + Date.now() + '-' + Math.random().toString(36).slice(2,8),
+      destination: destination, date: date,
+      description: $scope.newEntry.description || '',
+      tag: $scope.newEntry.tag || '',
+      image: $scope.newEntry.image || '',
+      imageName: $scope.newEntry.imageName || ''
+    };
+    if ($scope.editMode) {
+      const index = $scope.entries.findIndex(function(e) { return e.id === $scope.editingId; });
+      if (index !== -1) $scope.entries[index] = payload;
+    } else {
+      $scope.entries.push(payload);
+    }
+    $scope.cancelEdit();
+    saveData();
+  };
+  $scope.startEdit = function(entry) {
+    $scope.editMode = true;
+    $scope.editingId = entry.id;
+    $scope.newEntry = angular.copy(entry);
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  };
+  $scope.cancelEdit = function() {
+    $scope.editMode = false;
+    $scope.editingId = null;
+    $scope.newEntry = {};
+  };
+  $scope.deleteEntry = function(entry) {
+    if (!confirm('Are you sure you want to delete this memory?')) return;
+    $scope.entries = $scope.entries.filter(function(e) { return e.id !== entry.id; });
+    saveData();
+  };
+  $scope.clearAll = function() {
+    if (!confirm('Delete all travel memories permanently?')) return;
+    $scope.entries = [];
+    $scope.cancelEdit();
+    saveData();
+  };
+  $scope.searchFilter = function(entry) {
+    if ($scope.filterTag !== 'All' && entry.tag !== $scope.filterTag) return false;
+    const query = ($scope.searchText || '').toLowerCase().trim();
+    if (!query) return true;
+    const text = ((entry.destination || '') + ' ' + (entry.description || '') + ' ' + (entry.tag || '')).toLowerCase();
+    return text.includes(query);
+  };
+  $scope.toggleTheme = function() {
+    $scope.isDark = !$scope.isDark;
+    localStorage.setItem(THEME_KEY, $scope.isDark ? 'dark' : 'light');
+  };
+  $scope.formatDate = function(date) {
+    if (!date) return '';
+    const d = new Date(date + 'T00:00:00');
+    if (isNaN(d.getTime())) return date;
+    return d.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+  };
+  $scope.exportJSON = function() {
+    const data = JSON.stringify($scope.entries, null, 2);
+    const blob = new Blob([data], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'travel_diary_export.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+  loadData();
+}]);
+</script>
+</body>
+</html>
